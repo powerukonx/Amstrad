@@ -1,0 +1,22 @@
+# depslib dependency file v1.0
+1552336925 source:c:\users\emeric\desktop\cpc_projects\mod_converter\main.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<stdint.h>
+	<assert.h>
+
+1552416824 source:d:\cpc_projects\mod_converter\main.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<stdint.h>
+	<assert.h>
+
+1552425496 source:d:\github\dma_modplayer\mod_converter\main.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<stdint.h>
+	<assert.h>
+
