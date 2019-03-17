@@ -1,0 +1,13 @@
+# depslib dependency file v1.0
+1552673081 source:d:\learnc++\wav2dma\main.c
+	<stdio.h>
+	<stdlib.h>
+	<stdint.h>
+
+1552775220 source:d:\github\amstrad\wav2dma\main.c
+	<stdio.h>
+	<stdlib.h>
+	<stdint.h>
+	<assert.h>
+	<string.h>
+
