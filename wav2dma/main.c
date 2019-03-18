@@ -131,17 +131,17 @@ int main (int argc, char *argv[])
   /* Locals variables declaration. */
   int l_iReturn = 0;
 
- // assert (argc == 2);
+  assert (argc == 2);
 
   /* Load wave file into memory. */
- // iLoadFile ("Drums(Full).wav");
-  iLoadFile (argv[1]);
+  iLoadFile ("Loop.wav");
+  //iLoadFile (argv[1]);
 
   /* Convert data and save result. */
   iConvertData (argv[1]);
- // iConvertData ("Drums(Full).wav");
+  //iConvertData ("Loop.wav");
 
-  /* free ressources. */
+  /* free resources. */
   free (g_au8WaveData);
 
   printf ("Done !\n");
@@ -220,58 +220,51 @@ Returns     : .
 static int iConvertData (char *p_achFilename)
 {
   /* Locals variables declaration. */
-  int l_iReturn = 0;
-  FILE *fp = NULL;
-  uint16_t l_u16Counter = 0u;
-  uint8_t u8LastConvert = 0u;
+  int l_iReturn           = 0;
+  FILE *l_fp              = NULL;
+  uint16_t l_u16Counter   = 0u;
+  uint8_t l_u8LastConvert = 0xff;
+  uint16_t l_u16Index     = 0u;
 
-  fp = fopen ("dma.asm", "wt");
+  l_fp = fopen ("dma.asm", "wt");
 
-  fprintf (fp, "; %s\n", strrchr (p_achFilename, '\\') );
-  fprintf (fp, "  dw &%04X\n", DMA_REPEAT(10) );
+  fprintf (l_fp, "; %s\n", strrchr (p_achFilename, '\\') );
+  fprintf (l_fp, "  dw &%04X\n", DMA_REPEAT(10) );
 
   /* Initialize with first value. */
-  u8LastConvert = u8ConvertSample_u8(g_au8WaveData[0]);
-  fprintf (fp, "  dw &%04X\n",  DMA_LOAD(8, u8LastConvert));
+  l_u8LastConvert = u8ConvertSample_u8 (g_au8WaveData[0]);
+  fprintf (l_fp, "  dw &%04X\n",  DMA_LOAD(9, l_u8LastConvert));
 
-  /* Compute DMA table. */
-  for (int i = 1; i < g_sData.u32Subchunk2Size; i++)
+  do
   {
-    if ( u8LastConvert != u8ConvertSample_u8 (g_au8WaveData[i]) )
+    if ( l_u8LastConvert != u8ConvertSample_u8 (g_au8WaveData[l_u16Index]) )
     {
-      if (l_u16Counter > 0u)
+      if (0u < l_u16Counter)
       {
-        if (l_u16Counter > 4095)
+        while (0u < (l_u16Counter / 0xFFF) )
         {
-          printf ("%d\r\n", l_u16Counter / 4095);
+          fprintf (l_fp, "  dw &%04X\n", DMA_PAUSE (0xFFF) );
+          l_u16Counter -= 0xFFF;
         }
-
-        while (0u < (l_u16Counter / 4095))
-        {
-          fprintf (fp, "  dw &%04X\n", DMA_PAUSE(0xFFF) );
-          l_u16Counter -= 4095;
-        }
-
-        if (l_u16Counter > 0u)
-        {
-          fprintf (fp, "  dw &%04X\n", DMA_PAUSE(l_u16Counter) );
-        }
-
-        l_u16Counter = 0u;
+        fprintf (l_fp, "  dw &%04X\n", DMA_PAUSE(l_u16Counter) );
       }
 
-      fprintf (fp, "  dw &%04X\n", DMA_LOAD(9, u8ConvertSample_u8(g_au8WaveData[i]) ) );
-      u8LastConvert = u8ConvertSample_u8(g_au8WaveData[i]);
+      fprintf (l_fp, "  dw &%04X\n", DMA_LOAD(9, u8ConvertSample_u8 (g_au8WaveData[l_u16Index]) ) );
+      l_u16Counter  = 0u;
+      l_u8LastConvert = u8ConvertSample_u8 (g_au8WaveData[l_u16Index]);
     }
     else
     {
       l_u16Counter++;
     }
+    l_u16Index++;
   }
+  while (l_u16Index <= g_sData.u32Subchunk2Size );
 
-  fprintf (fp, "  dw &%04X\n", DMA_LOOP() );
-  fprintf (fp, "  dw &%04X\n", DMA_STOP() );
-  fclose (fp);
+  fprintf (l_fp, "  dw &%04X\n", DMA_LOOP() );
+  fprintf (l_fp, "  dw &%04X\n", DMA_STOP() );
+
+  fclose (l_fp);
 
   return (l_iReturn);
 }
