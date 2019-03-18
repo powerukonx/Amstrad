@@ -107,8 +107,8 @@ static uint8_t *g_au8WaveData = NULL;
 /* =============================================================================
                         Private function declarations
 ============================================================================= */
-static int iLoadFile (char *p_achFilename);
-static int iConvertData (char *p_achFilename);
+static void vLoadFile (char *p_achFilename);
+static void vConvertData (char *p_achFilename);
 static uint8_t u8ConvertSample_u8 (uint8_t p_u8Sample);
 
 
@@ -134,12 +134,12 @@ int main (int argc, char *argv[])
   assert (argc == 2);
 
   /* Load wave file into memory. */
-  iLoadFile ("Loop.wav");
-  //iLoadFile (argv[1]);
+   //vLoadFile ("Loop.wav");
+  vLoadFile (argv[1]);
 
   /* Convert data and save result. */
-  iConvertData (argv[1]);
-  //iConvertData ("Loop.wav");
+  vConvertData (argv[1]);
+  //v ConvertData ("Loop.wav");
 
   /* free resources. */
   free (g_au8WaveData);
@@ -155,18 +155,17 @@ int main (int argc, char *argv[])
 ============================================================================= */
 
 /*==============================================================================
-Function    : iLoadFile
+Function    : vLoadFile
 
-Describe    : .
+Describe    : Load WAV file and check some parameters.
 
-Parameters  : .
+Parameters  : p_achFilename = filename nul terminated.
 
-Returns     : .
+Returns     : None.
 ==============================================================================*/
-static int iLoadFile (char *p_achFilename)
+static void vLoadFile (char *p_achFilename)
 {
   /* Locals variables declaration. */
-  int l_iReturn           = 0;
   FILE *l_fpMod           = NULL;
   uint32_t l_u32Read      = 0u;
   uint32_t l_u32FileSize  = 0u;
@@ -203,24 +202,21 @@ static int iLoadFile (char *p_achFilename)
   assert (g_sData.u32Subchunk2Size == l_u32Read);
 
   fclose (l_fpMod);
-
-  return (l_iReturn);
 }
 
 
 /*==============================================================================
-Function    : iConvertData
+Function    : vConvertData
 
-Describe    : .
+Describe    : Convert 8bit data to DMA instauction (4bit data).
 
-Parameters  : .
+Parameters  : p_achFilename = filename nul terminated..
 
-Returns     : .
+Returns     : None.
 ==============================================================================*/
-static int iConvertData (char *p_achFilename)
+static void vConvertData (char *p_achFilename)
 {
   /* Locals variables declaration. */
-  int l_iReturn           = 0;
   FILE *l_fp              = NULL;
   uint16_t l_u16Counter   = 0u;
   uint8_t l_u8LastConvert = 0xff;
@@ -265,8 +261,6 @@ static int iConvertData (char *p_achFilename)
   fprintf (l_fp, "  dw &%04X\n", DMA_STOP() );
 
   fclose (l_fp);
-
-  return (l_iReturn);
 }
 
 
