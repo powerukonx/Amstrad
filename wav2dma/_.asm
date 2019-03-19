@@ -15,7 +15,7 @@
   read "./player.asm"
 
 .sample
-  read "./dma.asm"
+  incbin"./dma.bin"
   
 LIST
  DB 0

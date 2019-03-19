@@ -17,6 +17,8 @@
 /* =============================================================================
                                  DEBUG Section
 ============================================================================= */
+//#define SAVE_DMA_TXT
+//#define SAVE_WAV_RESULT
 
 
 /* =============================================================================
@@ -32,7 +34,12 @@
 /* =============================================================================
                           Private defines and typedefs
 ============================================================================= */
-#define WAV_FILE "sample.wav"
+#ifdef DBG_PWR
+#define WAV_FILE                "Sample_8bit_15625Hz.wav"
+#endif /* DBG_PWR */
+
+#define AUDIO_GAIN              1.9
+#define AUDIO_PSG_CHANNEL       9
 
 #define WAVE_GROUP_ID           "RIFF"
 #define WAVE_RIFF_TYPE          "WAVE"
@@ -48,10 +55,12 @@
 #define DMA_LOAD(r,d)           ( (uint16_t)( ( ((r) & 0x0f)<<8) | ((d) & 0xff) ) )
 #define DMA_PAUSE(n)            ( (uint16_t)(0x1000 | ((n) & 0x0FFF) ) )
 #define DMA_REPEAT(n)           ( (uint16_t)(0x2000 | ((n) & 0x0FFF) ) )
-#define DMA_NOP()               ( (uint16_t)0x4000 )
-#define DMA_LOOP()              ( (uint16_t)0x4001 )
-#define DMA_INT()               ( (uint16_t)0x4010 )
-#define DMA_STOP()              ( (uint16_t)0x4020 )
+#define DMA_NOP()               ( (uint16_t)0x4000)
+#define DMA_LOOP()              ( (uint16_t)0x4001)
+#define DMA_INT()               ( (uint16_t)0x4010)
+#define DMA_STOP()              ( (uint16_t)0x4020)
+#define DMA_PAUSE_MAX_VALUE     ( (uint16_t)0x0FFF)
+
 
 typedef struct WAVE_RIFF {
   char achChunkID[4];
@@ -104,6 +113,10 @@ static sWaveFmt_t g_sFmt;
 static sWaveData_t g_sData;
 static uint8_t *g_au8WaveData = NULL;
 
+#ifdef SAVE_WAV_RESULT
+static FILE *g_psFileResult = NULL;
+#endif /* SAVE_WAV_RESULT. */
+
 /* =============================================================================
                         Private function declarations
 ============================================================================= */
@@ -131,15 +144,15 @@ int main (int argc, char *argv[])
   /* Locals variables declaration. */
   int l_iReturn = 0;
 
+  /* Load wave file, convert data and save result.*/
+#ifdef DBG_PWR
+  vLoadFile (WAV_FILE);
+  vConvertData (WAV_FILE);
+#else
   assert (argc == 2);
-
-  /* Load wave file into memory. */
-   //vLoadFile ("Loop.wav");
   vLoadFile (argv[1]);
-
-  /* Convert data and save result. */
   vConvertData (argv[1]);
-  //v ConvertData ("Loop.wav");
+#endif /* DBG_PWR */
 
   /* free resources. */
   free (g_au8WaveData);
@@ -174,6 +187,11 @@ static void vLoadFile (char *p_achFilename)
   l_fpMod = fopen (p_achFilename, "rb");
   assert (NULL != l_fpMod);
 
+#ifdef SAVE_WAV_RESULT
+  g_psFileResult = fopen ("Result.wav", "wb");
+  assert (NULL != g_psFileResult);
+#endif /* SAVE_WAV_RESULT */
+
   /* Get file size. */
   fseek (l_fpMod, 0L, SEEK_END);
   l_u32FileSize = ftell (l_fpMod);
@@ -192,6 +210,12 @@ static void vLoadFile (char *p_achFilename)
   l_u32Read = fread (&g_sData, 1u, sizeof (g_sData), l_fpMod);
   assert (sizeof (g_sData) == l_u32Read);
   assert (0 == strncmp (g_sData.achSubchunk2ID, WAVE_SOUND_DATA_ID, strlen (WAVE_SOUND_DATA_ID) ) );
+
+#ifdef SAVE_WAV_RESULT
+  fwrite (&g_sRiff, 1u, sizeof (g_sRiff), g_psFileResult);
+  fwrite (&g_sFmt, 1u, sizeof (g_sFmt), g_psFileResult);
+  fwrite (&g_sData, 1u, sizeof (g_sData), g_psFileResult);
+#endif /* SAVE_WAV_RESULT */
 
   /* Allocate memory for data. */
   g_au8WaveData = (uint8_t *)malloc(g_sData.u32Subchunk2Size);
@@ -217,50 +241,120 @@ Returns     : None.
 static void vConvertData (char *p_achFilename)
 {
   /* Locals variables declaration. */
+#ifdef SAVE_DMA_TXT
   FILE *l_fp              = NULL;
+#endif /* SAVE_DMA_TXT */
+  FILE *l_fp2             = NULL;
   uint16_t l_u16Counter   = 0u;
   uint8_t l_u8LastConvert = 0xff;
   uint16_t l_u16Index     = 0u;
+  uint8_t l_au8Temp[64];
 
+#ifdef SAVE_DMA_TXT
   l_fp = fopen ("dma.asm", "wt");
-
+#ifdef DBG_PWR
+  fprintf (l_fp, "; %s\n", p_achFilename);
+#else
   fprintf (l_fp, "; %s\n", strrchr (p_achFilename, '\\') );
+#endif /* DBG_PWR */
   fprintf (l_fp, "  dw &%04X\n", DMA_REPEAT(10) );
+#endif /* SAVE_DMA_TXT */
+
+  l_fp2 = fopen ("dma.bin", "wb");
+
+  l_au8Temp[1] = DMA_REPEAT(10)>>8;
+  l_au8Temp[0] = DMA_REPEAT(10)&0xFF;
+  fwrite (l_au8Temp, 1u, sizeof (uint16_t), l_fp2);
 
   /* Initialize with first value. */
   l_u8LastConvert = u8ConvertSample_u8 (g_au8WaveData[0]);
-  fprintf (l_fp, "  dw &%04X\n",  DMA_LOAD(9, l_u8LastConvert));
+
+  l_au8Temp[1] = DMA_LOAD(AUDIO_PSG_CHANNEL, l_u8LastConvert)>>8;
+  l_au8Temp[0] = DMA_LOAD(AUDIO_PSG_CHANNEL, l_u8LastConvert)&0xFF;
+  fwrite (l_au8Temp, 1u, sizeof (uint16_t), l_fp2);
+
+#ifdef SAVE_DMA_TXT
+  fprintf (l_fp, "  dw &%04X\n",  DMA_LOAD(AUDIO_PSG_CHANNEL, l_u8LastConvert) );
+#endif /* SAVE_DMA_TXT */
 
   do
   {
+#ifdef SAVE_WAV_RESULT
+    /* Save result data as WAV file. */
+    uint8_t u8Result = (l_u8LastConvert<<4u) + 16u;
+    fwrite (&u8Result, 1u, sizeof (uint8_t), g_psFileResult);
+#endif /* SAVE_WAV_RESULT */
+
+    /* New sample is different ? */
     if ( l_u8LastConvert != u8ConvertSample_u8 (g_au8WaveData[l_u16Index]) )
     {
-      if (0u < l_u16Counter)
+      /* Insert PAUSE if need. */
+      while (l_u16Counter > 0u)
       {
-        while (0u < (l_u16Counter / 0xFFF) )
+        if (l_u16Counter > DMA_PAUSE_MAX_VALUE)
         {
-          fprintf (l_fp, "  dw &%04X\n", DMA_PAUSE (0xFFF) );
-          l_u16Counter -= 0xFFF;
+          l_au8Temp[1] = DMA_PAUSE (DMA_PAUSE_MAX_VALUE)>>8;
+          l_au8Temp[0] = DMA_PAUSE (DMA_PAUSE_MAX_VALUE)&0xFF;
+          fwrite(l_au8Temp, 1, sizeof(uint16_t), l_fp2);
+
+#ifdef SAVE_DMA_TXT
+          fprintf (l_fp, "  dw &%04X\n", DMA_PAUSE(DMA_PAUSE_MAX_VALUE) );
+#endif /* SAVE_DMA_TXT */
+
+          l_u16Counter -= DMA_PAUSE_MAX_VALUE;
         }
-        fprintf (l_fp, "  dw &%04X\n", DMA_PAUSE(l_u16Counter) );
+        else
+        {
+          l_au8Temp[1] = DMA_PAUSE (l_u16Counter)>>8;
+          l_au8Temp[0] = DMA_PAUSE (l_u16Counter)&0xFF;
+          fwrite(l_au8Temp, 1, sizeof(uint16_t), l_fp2);
+
+#ifdef SAVE_DMA_TXT
+          fprintf (l_fp, "  dw &%04X\n", DMA_PAUSE(l_u16Counter) );
+#endif /* SAVE_DMA_TXT */
+
+          l_u16Counter = 0u;
+        }
       }
 
-      fprintf (l_fp, "  dw &%04X\n", DMA_LOAD(9, u8ConvertSample_u8 (g_au8WaveData[l_u16Index]) ) );
-      l_u16Counter  = 0u;
+      /* Save new sample. */
+      l_au8Temp[1] = DMA_LOAD(AUDIO_PSG_CHANNEL, u8ConvertSample_u8 (g_au8WaveData[l_u16Index]) )>>8;
+      l_au8Temp[0] = DMA_LOAD(AUDIO_PSG_CHANNEL, u8ConvertSample_u8 (g_au8WaveData[l_u16Index]) )&0xFF;
+      fwrite(l_au8Temp, 1, sizeof(uint16_t), l_fp2);
+
+#ifdef SAVE_DMA_TXT
+      fprintf (l_fp, "  dw &%04X\n", DMA_LOAD(AUDIO_PSG_CHANNEL, u8ConvertSample_u8 (g_au8WaveData[l_u16Index]) ) );
+#endif /* SAVE_DMA_TXT */
+
       l_u8LastConvert = u8ConvertSample_u8 (g_au8WaveData[l_u16Index]);
     }
     else
     {
       l_u16Counter++;
     }
+
     l_u16Index++;
   }
   while (l_u16Index <= g_sData.u32Subchunk2Size );
 
+#ifdef SAVE_DMA_TXT
   fprintf (l_fp, "  dw &%04X\n", DMA_LOOP() );
   fprintf (l_fp, "  dw &%04X\n", DMA_STOP() );
+#endif /* SAVE_DMA_TXT */
 
-  fclose (l_fp);
+  l_au8Temp[1] = DMA_LOOP()>>8;
+  l_au8Temp[0] = DMA_LOOP()&0xFF;
+  fwrite(l_au8Temp, 1, sizeof(uint16_t), l_fp2);
+
+  l_au8Temp[1] = DMA_STOP()>>8;
+  l_au8Temp[0] = DMA_STOP()&0xFF;
+  fwrite(l_au8Temp, 1, sizeof(uint16_t), l_fp2);
+
+#ifdef SAVE_WAV_RESULT
+  fclose (g_psFileResult);
+#endif /* SAVE_WAV_RESULT */
+
+  fclose (l_fp2);
 }
 
 
@@ -282,14 +376,14 @@ static uint8_t u8ConvertSample_u8 (uint8_t p_u8Sample)
   l_s16Sample = (int8_t)(p_u8Sample - 128);
   if (l_s16Sample >= 0)
   {
-    l_u8Convert = g_cau8PSGVolumeLUT[(uint8_t)(l_s16Sample*1.8)]>>1;
+    l_u8Convert = g_cau8PSGVolumeLUT[(uint8_t)(l_s16Sample*AUDIO_GAIN)]>>1;
     l_u8Convert += 7;
   }
   else
   {
     l_s16Sample = -l_s16Sample;
     l_u8Convert = 7;
-    l_u8Convert -= (g_cau8PSGVolumeLUT[(uint8_t)(l_s16Sample*1.8)]>>1);
+    l_u8Convert -= (g_cau8PSGVolumeLUT[(uint8_t)(l_s16Sample*AUDIO_GAIN)]>>1);
   }
 
   return (l_u8Convert);
