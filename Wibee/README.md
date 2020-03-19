@@ -1,3 +1,3 @@
 # Wibee
 
-Attempt to wireless communication board for Amstrad
+Attempt wireless communication board for Amstrad using Xbee module.
